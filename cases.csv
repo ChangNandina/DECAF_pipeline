@@ -1,1 +1,1 @@
-subject_id,scan1_dicom_dir,scan2_dicom_dir,output_base_dir,scan_type,n_phases
+subject_id,scan1_dicom_dir,scan2_dicom_dir,output_base_dir,scan_type,n_phases,scan1_skull_stripped,scan1_csf_seg,scan2_skull_stripped,scan2_csf_seg,scan1_csf_mat,scan2_csf_mat
