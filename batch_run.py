@@ -27,12 +27,13 @@ def _parse_skip_segments(s):
 
 
 def run_case(case):
-    subject_id  = case['subject_id']
-    scan1_dicom = case['scan1_dicom_dir']
-    scan2_dicom = case['scan2_dicom_dir']
-    base_out    = case['output_base_dir']
-    scan_type   = case.get('scan_type', 'b40')
-    n_phases    = int(case.get('n_phases', 25))
+    subject_id     = case['subject_id']
+    scan1_b40_dicom = case['scan1_b40_dicom_dir']
+    scan1_b0_dicom  = case.get('scan1_b0_dicom_dir', '')
+    scan2_b40_dicom = case['scan2_b40_dicom_dir']
+    scan2_b0_dicom  = case.get('scan2_b0_dicom_dir', '')
+    base_out        = case['output_base_dir']
+    n_phases        = int(case.get('n_phases', 25))
 
     # FSL + ADC inputs (fill after FSL BET/FAST)
     scan1_skull_stripped = case.get('scan1_skull_stripped', '')
@@ -43,10 +44,10 @@ def run_case(case):
     scan2_csf_mat        = case.get('scan2_csf_mat', '')
 
     # Vessel inputs (fill after ITK-SNAP annotation + Part A review)
-    scan1_vessel_mask     = case.get('scan1_vessel_mask', '')
-    scan2_vessel_mask     = case.get('scan2_vessel_mask', '')
-    scan1_skip_segments   = _parse_skip_segments(case.get('scan1_skip_segments', ''))
-    scan2_skip_segments   = _parse_skip_segments(case.get('scan2_skip_segments', ''))
+    scan1_vessel_mask   = case.get('scan1_vessel_mask', '')
+    scan2_vessel_mask   = case.get('scan2_vessel_mask', '')
+    scan1_skip_segments = _parse_skip_segments(case.get('scan1_skip_segments', ''))
+    scan2_skip_segments = _parse_skip_segments(case.get('scan2_skip_segments', ''))
 
     print(f"\n{'#' * 70}")
     print(f"# Subject: {subject_id}")
@@ -63,7 +64,7 @@ def run_case(case):
     scan1_adc    = os.path.join(base_out, "scan1_adc")
     scan2_adc    = os.path.join(base_out, "scan2_adc")
 
-    # Vessel paths (scan1 and scan2 each have their own graph/PI/paravascular)
+    # Vessel paths
     scan1_vessel_out = os.path.join(base_out, "scan1_vessel")
     scan2_vessel_out = os.path.join(base_out, "scan2_vessel")
     scan1_graph      = os.path.join(scan1_vessel_out, "graph")
@@ -74,11 +75,15 @@ def run_case(case):
     scan2_paravasc   = os.path.join(scan2_vessel_out, "paravascular")
 
     # ── Steps 1-4: image preparation ─────────────────────────────
+    # scan1: convert b40 phases + b0 (b0 not used downstream but kept for consistency)
     print(f"\n[Step 1] scan1  DICOM -> NIfTI")
-    convert_dicom_to_nifti(scan1_dicom, scan1_nifti, scan_type, n_phases)
+    convert_dicom_to_nifti(scan1_b40_dicom, scan1_nifti, n_phases=n_phases,
+                           b0_dicom_dir=scan1_b0_dicom or None)
 
+    # scan2: convert b40 phases + b0 (b0 needed for registration -> r_b0.nii.gz -> ADC)
     print(f"\n[Step 1] scan2  DICOM -> NIfTI")
-    convert_dicom_to_nifti(scan2_dicom, scan2_nifti, scan_type, n_phases)
+    convert_dicom_to_nifti(scan2_b40_dicom, scan2_nifti, n_phases=n_phases,
+                           b0_dicom_dir=scan2_b0_dicom or None)
 
     print(f"\n[Step 2] Registration  scan2 -> scan1")
     scan2_reg = register_interscan(ref_dir=scan1_nifti, src_dir=scan2_nifti)
@@ -107,8 +112,8 @@ def run_case(case):
     if scan1_csf_mat:
         print(f"\n[Step 6] ADC  scan1  (from DICOM)")
         calc_adc_dicom(
-            b0_folder    =os.path.join(scan1_dicom, 'dicom_bbcine_combined'),
-            b1_base_path =scan1_dicom,
+            b0_folder    =os.path.join(scan1_b0_dicom, 'dicom_bbcine_combined'),
+            b1_base_path =scan1_b40_dicom,
             csf_mask_path=scan1_csf_mat,
             output_folder=scan1_adc,
             phase_count  =n_phases,
